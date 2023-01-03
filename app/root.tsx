@@ -1,4 +1,4 @@
-import { json, LoaderArgs, MetaFunction } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
   Links,
   LiveReload,
@@ -8,10 +8,12 @@ import {
   ScrollRestoration,
   useLoaderData,
 } from "@remix-run/react";
-import { createClient } from "@supabase/supabase-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import supabase from "utils/supabase.server";
+import { createBrowserClient } from "@supabase/auth-helpers-remix";
+import createServerSupabase from "utils/supabase.server";
+
+import type { LoaderArgs, MetaFunction } from "@remix-run/node";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "db_types";
 
 type TypedSupabaseClient = SupabaseClient<Database>;
@@ -26,11 +28,21 @@ export const meta: MetaFunction = () => ({
   viewport: "width=device-width,initial-scale=1",
 });
 
-export const loader = async ({}: LoaderArgs) => {
+export const loader = async ({ request }: LoaderArgs) => {
   const env = {
     SUPABASE_URL: process.env.SUPABASE_URL!,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY!,
   };
+
+  /**
+   * This supabase client may need to refresh the access token when making a request to Supabase.
+   */
+  const response = new Response();
+
+  /**
+   * Create new supabase client
+   */
+  const supabase = createServerSupabase({ request, response });
 
   /**
    * Get current Supabase session
@@ -39,7 +51,7 @@ export const loader = async ({}: LoaderArgs) => {
     data: { session },
   } = await supabase.auth.getSession();
 
-  return json({ env, session });
+  return json({ env, session }, { headers: response.headers });
 };
 
 export default function App() {
@@ -51,7 +63,7 @@ export default function App() {
   console.log({ server: { session } });
 
   const [supabase] = useState(() =>
-    createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY)
+    createBrowserClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY)
   );
 
   /**
