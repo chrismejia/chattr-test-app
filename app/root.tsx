@@ -10,8 +10,8 @@ import {
 } from "@remix-run/react";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
+import supabase from "utils/supabase.server";
 import type { Database } from "db_types";
 
 type TypedSupabaseClient = SupabaseClient<Database>;
@@ -32,15 +32,37 @@ export const loader = async ({}: LoaderArgs) => {
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY!,
   };
 
-  return json({ env });
+  /**
+   * Get current Supabase session
+   */
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return json({ env, session });
 };
 
 export default function App() {
-  const { env } = useLoaderData<typeof loader>();
+  /**
+   * Destructure the data received by the `useLoader` hook
+   */
+  const { env, session } = useLoaderData<typeof loader>();
+
+  console.log({ server: { session } });
 
   const [supabase] = useState(() =>
     createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY)
   );
+
+  /**
+   * useEffect runs client-side; use the singleton to get the client session
+   * by default, Supabase stores our session information in Local Storage
+   */
+  useEffect(() => {
+    supabase.auth
+      .getSession()
+      .then((session) => console.log({ client: { session } }));
+  }, []);
 
   return (
     <html lang="en">
