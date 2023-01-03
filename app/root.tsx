@@ -6,6 +6,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useFetcher,
   useLoaderData,
 } from "@remix-run/react";
 import { useEffect, useState } from "react";
@@ -24,7 +25,7 @@ export type SupabaseOutletContext = {
 
 export const meta: MetaFunction = () => ({
   charset: "utf-8",
-  title: "New Remix App",
+  title: "Chatter",
   viewport: "width=device-width,initial-scale=1",
 });
 
@@ -60,7 +61,9 @@ export default function App() {
    */
   const { env, session } = useLoaderData<typeof loader>();
 
-  console.log({ server: { session } });
+  const fetcher = useFetcher();
+
+  const serverAccessToken = session?.access_token;
 
   const [supabase] = useState(() =>
     createBrowserClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY)
@@ -71,10 +74,23 @@ export default function App() {
    * by default, Supabase stores our session information in Local Storage
    */
   useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then((session) => console.log({ client: { session } }));
-  }, []);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.access_token !== serverAccessToken) {
+        // Data is out of sync, call loaders again!
+        fetcher.submit(null, {
+          method: "post",
+          action: "/handle-supabase-auth",
+        });
+      }
+    });
+
+    // Cleanup function for the subscription listener
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [serverAccessToken, supabase, fetcher]);
 
   return (
     <html lang="en">
