@@ -20,7 +20,7 @@ export interface Database {
           id?: string
           created_at?: string
           content: string
-          user_id: string
+          user_id?: string
         }
         Update: {
           id?: string
