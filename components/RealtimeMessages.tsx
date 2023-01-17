@@ -14,6 +14,17 @@ export default function RealtimeMessages({
   const [messages, setMessages] = useState(serverMessages);
   const { supabase } = useOutletContext<SupabaseOutletContext>();
 
+  /**
+   * To update this component if `serverMessages` changes b/c user logs in/out
+   */
+  useEffect(() => {
+    setMessages(serverMessages);
+  }, [serverMessages]);
+
+  /**
+   * Subscribe to realtime changes to messages table.
+   * Add each new message to all logged in users by adding to end of new array
+   */
   useEffect(() => {
     const channel = supabase
       .channel("*")
@@ -25,7 +36,15 @@ export default function RealtimeMessages({
           table: "messages",
         },
         (payload) => {
-          console.log(payload);
+          const newMessage = payload.new as Message;
+
+          /**
+           * If we can't find the message, in a new array, spread the old messages,
+           * then add the new message to array as the latest message
+           */
+          if (!messages.find((message) => message.id === newMessage.id)) {
+            setMessages([...messages, newMessage]);
+          }
         }
       )
       .subscribe();
@@ -33,7 +52,8 @@ export default function RealtimeMessages({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, [supabase, messages, setMessages]);
 
-  return <pre>{JSON.stringify(serverMessages, null, 2)}</pre>;
+  // Render the dynamic messages array
+  return <pre>{JSON.stringify(messages, null, 2)}</pre>;
 }
